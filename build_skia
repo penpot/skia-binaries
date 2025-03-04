@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-TAG="0.80.1"
+TAG="0.81.0"
 SKIA_FEATURES="gl,svg,textlayout,binary-cache"
 
 git clone https://github.com/rust-skia/rust-skia.git
