@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-TAG="0.81.0"
-SKIA_FEATURES="gl,svg,textlayout,binary-cache"
+TAG="0.86.0"
+SKIA_FEATURES="gl,svg,textlayout,binary-cache,webp"
+
+/emsdk/emsdk activate latest
+. /emsdk/emsdk_env.sh
 
 git clone https://github.com/rust-skia/rust-skia.git
 pushd rust-skia;
 git checkout $TAG
 HASH="$(git rev-parse --short=20 HEAD)"
-TARGET="wasm32-unknown-emscripten"
 OUTPUT_FILE=skia-binaries-$HASH-$TARGET-"$(echo "$SKIA_FEATURES" | tr ',' '-')".tar.gz
 BUILD_PATH=$(cargo build -p skia-safe --release --features "$SKIA_FEATURES" --target $TARGET -q --message-format=json | jq -r 'select((.reason == "build-script-executed") and (.package_id | contains("skia-bindings")) ) | .linked_paths | first')
 popd
@@ -53,3 +55,4 @@ EOL
 tar zcvf $OUTPUT_FILE skia-binaries
 rm -rf skia-binaries
 echo "Generated: $OUTPUT_FILE"
+cp $OUTPUT_FILE /output/
