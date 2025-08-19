@@ -19,12 +19,12 @@ Note: use `--no-cache` to rebuild
     - For wasm:
 
         ```
-        docker run -v ./output:/output -e TAG=0.86.0 -e TARGET=wasm32-unknown-emscripten --rm -it --entrypoint /rust-skia/build_skia skia-builder
+        docker run -v ./output:/output -e TAG=0.86.1 -e TARGET=wasm32-unknown-emscripten --rm -it --entrypoint ../rust-skia/build_skia skia-builder
         ```
 
     - For non wasm:
         ```
-        docker run -v ./output:/output -e TAG=0.86.0 -e TARGET=x86_64-unknown-linux-gnu --rm -it --entrypoint /rust-skia/build_skia skia-builder
+        docker run -v ./output:/output -e TAG=0.86.1 -e TARGET=x86_64-unknown-linux-gnu --rm -it --entrypoint ../rust-skia/build_skia skia-builder
         ```
 
 And the results will be generated in the output folder
@@ -40,12 +40,7 @@ docker build --build-arg BUILD_SCRIPT=build_skia_local --tag skia-builder-local 
 
 * Launch it and build skia (TAG and TARGET are specified via env variables):
 
+
 ```
-docker run -it --rm \
-  -v /your/path/to/rust-skia:/rust-skia-local \
-  -v $(pwd)/output:/output \
-  -e TAG=0.86.0
-  -e TARGET=wasm32-unknown-emscripten \
-  skia-builder \
-  ./build_skia_local
-``` 
+docker run -v ./output:/output -v /home/elenathor/Kaleidos/rust-skia:/rust-skia-local -e TAG=0.86.1 -e TARGET=wasm32-unknown-emscripten --rm -it --entrypoint ../rust-skia/build_skia_local skia-builder-local
+```

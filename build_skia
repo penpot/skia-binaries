@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-TAG="0.86.0"
+TAG="0.86.1"
 SKIA_FEATURES="gl,svg,textlayout,binary-cache,webp"
 
 /emsdk/emsdk activate latest

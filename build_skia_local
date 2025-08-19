@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-TAG="0.86.0"
+TAG="0.86.1"
 SKIA_FEATURES="gl,svg,textlayout,binary-cache,webp"
 
 # Path to local rust-skia repository mounted in Docker
@@ -19,14 +19,6 @@ fi
 git config --global --add safe.directory "$RUST_SKIA_PATH"
 
 pushd "$RUST_SKIA_PATH"
-
-# Check if we're on the correct tag/commit
-CURRENT_TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-if [ "$CURRENT_TAG" != "$TAG" ]; then
-    echo "Warning: Current tag ($CURRENT_TAG) doesn't match expected tag ($TAG)"
-    echo "Switching to tag $TAG..."
-    git checkout $TAG
-fi
 
 HASH="$(git rev-parse --short=20 HEAD)"
 OUTPUT_FILE=skia-binaries-$HASH-$TARGET-"$(echo "$SKIA_FEATURES" | tr ',' '-')".tar.gz
