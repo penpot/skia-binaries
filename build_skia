@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-TAG="0.86.0"
+TAG="0.87.1"
 SKIA_FEATURES="gl,svg,textlayout,binary-cache,webp"
 
 /emsdk/emsdk activate latest
 . /emsdk/emsdk_env.sh
 
-git clone https://github.com/rust-skia/rust-skia.git
+# git clone https://github.com/rust-skia/rust-skia.git
+git clone https://github.com/elenatorro/rust-skia
 pushd rust-skia;
 git checkout $TAG
 HASH="$(git rev-parse --short=20 HEAD)"

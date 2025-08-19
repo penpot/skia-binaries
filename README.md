@@ -12,12 +12,15 @@ docker build --tag skia-builder .
 * Launch it and build skia (TAG and TARGET are specified via env variables):
 
     - For wasm:
+
         ```
-        docker run -v ./output:/output -e TAG=0.86.0 -e TARGET=wasm32-unknown-emscripten --rm -it --entrypoint /rust-skia/build_skia skia-builder
+        docker run -v ./output:/output -e TAG=0.87.1 -e TARGET=wasm32-unknown-emscripten --rm -it --entrypoint /rust-skia/build_skia skia-builder
         ```
+
     - For non wasm:
+
         ```
-        docker run -v ./output:/output -e TAG=0.86.0 -e TARGET=x86_64-unknown-linux-gnu --rm -it --entrypoint /rust-skia/build_skia skia-builder
+        docker run -v ./output:/output -e TAG=0.87.1 -e TARGET=x86_64-unknown-linux-gnu --rm -it --entrypoint /rust-skia/build_skia skia-builder
         ```
 
 And the results will be generated in the output folder
