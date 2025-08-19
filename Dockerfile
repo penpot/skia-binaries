@@ -10,5 +10,9 @@ RUN set -ex; \
     ./emsdk activate latest; \
     rustup target add wasm32-unknown-emscripten;
 
-WORKDIR /rust-skia/
+ARG BUILD_SCRIPT=build_skia
+WORKDIR /rust-skia
+COPY ${BUILD_SCRIPT} /rust-skia/build_script
 COPY build_skia /rust-skia/
+COPY build_skia_local /rust-skia/
+RUN chmod +x /rust-skia/build_script /rust-skia/build_skia /rust-skia/build_skia_local
