@@ -1,0 +1,59 @@
+#!/bin/bash
+# If something fails stops execution
+set -e
+
+# If .env exists, we load it.
+if [ -f .env ]; then
+  source .env
+fi
+
+if [ -d output ]; then
+  rm -rf output
+fi
+
+if [ -z "${GITHUB_API_VERSION}" ]; then
+  GITHUB_API_VERSION="2022-11-28"
+fi
+
+SKIA_TAG=$1
+if [ -z "${SKIA_TAG}" ]; then
+  echo -e "\033[0;36mSkia Safe version (example: 0.89.1):\033[0m"
+  read SKIA_TAG
+fi
+
+SKIA_BINARIES_TAG=$2
+if [ -z "${SKIA_BINARIES_TAG}" ]; then
+  echo -e "\033[0;36mPenpot Skia Binaries tag (example: 0.89.1):\033[0m"
+  read SKIA_BINARIES_TAG
+fi
+
+docker build --tag skia-builder .
+docker run -v ./output:/output -e TAG=${SKIA_TAG} -e TARGET=wasm32-unknown-emscripten --rm -it --entrypoint /rust-skia/build_skia skia-builder
+docker run -v ./output:/output -e TAG=${SKIA_TAG} -e TARGET=x86_64-unknown-linux-gnu --rm -it --entrypoint /rust-skia/build_skia skia-builder
+
+if [ ! -z "${GITHUB_API_TOKEN}" ]; then
+  echo -e "\033[0;36mDo you want to publish this release (yN):\033[0m"
+  read -r PUBLISH_YN
+  PUBLISH_YN=${PUBLISH_YN:-"N"}
+  if [ ${PUBLISH_YN} == "y" ]; then
+    curl -L \
+      -X POST \
+      -H "Accept: application/vnd.github+json" \
+      -H "Authorization: Bearer ${GITHUB_API_TOKEN}" \
+      -H "X-GitHub-Api-Version: ${GITHUB_API_VERSION}" \
+      https://api.github.com/repos/penpot/skia-binaries/releases \
+      -d "{\"tag_name\":\"${SKIA_BINARIES_TAG}\",\"target_commitish\":\"main\",\"name\":\"${SKIA_BINARIES_TAG}\",\"body\":\"Update Skia binaries\",\"draft\":false,\"prerelease\":false,\"generate_release_notes\":false}"
+    for ASSET_FILE in output/*.tar.gz; do
+      ASSET_NAME=`basename ${ASSET_FILE}`
+      echo -e "\033[0;36mUploading ${ASSET_NAME}...\033[0m"
+      curl -L \
+        -X POST \
+        -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer ${GITHUB_API_TOKEN}" \
+        -H "X-GitHub-Api-Version: ${GITHUB_API_VERSION}" \
+        -H "Content-Type: application/octet-stream" \
+        "https://uploads.github.com/repos/penpot/skia-binaries/releases/${SKIA_BINARIES_TAG}/assets?name=${ASSET_NAME}" \
+        --data-binary "@${ASSET_FILE}"
+    done
+  fi
+fi
