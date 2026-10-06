@@ -1,25 +1,99 @@
 #!/usr/bin/env bash
-SKIA_FEATURES="gl,svg,textlayout,binary-cache,webp"
+# Build prebuilt Skia binaries for penpot/skia-binaries releases.
+#
+# Required env:
+#   TAG     rust-skia tag or commit (e.g. 0.93.1)
+#   TARGET  cargo target triple (e.g. wasm32-unknown-emscripten)
+#
+# Optional env:
+#   SKIA_FEATURES         comma-separated cargo features
+#                         (default: gl,svg,textlayout,binary-cache,webp,pdf)
+#   EMSCRIPTEN_VERSION    emsdk version to activate (default: 4.0.6)
+#   WASM_SIMD             1/0 — enable -msimd128 for wasm builds (default: 1)
+#   EMCC_CFLAGS           extra emcc flags (appended; wasm SIMD adds -msimd128)
 
-/emsdk/emsdk activate latest
+set -euo pipefail
+
+: "${TAG:?TAG is required (rust-skia tag or commit, e.g. 0.93.1)}"
+: "${TARGET:?TARGET is required (e.g. wasm32-unknown-emscripten)}"
+
+SKIA_FEATURES="${SKIA_FEATURES:-gl,svg,textlayout,binary-cache,webp,pdf}"
+EMSCRIPTEN_VERSION="${EMSCRIPTEN_VERSION:-4.0.6}"
+WASM_SIMD="${WASM_SIMD:-1}"
+
+/emsdk/emsdk activate "${EMSCRIPTEN_VERSION}"
+# shellcheck source=/dev/null
 . /emsdk/emsdk_env.sh
 
-git clone https://github.com/rust-skia/rust-skia.git
-pushd rust-skia;
-git checkout $TAG
+SIMD_SUFFIX=""
+if [[ "${TARGET}" == "wasm32-unknown-emscripten" && "${WASM_SIMD}" == "1" ]]; then
+  # Engines do not autovec scalar wasm into SIMD. Skia/emcc must emit
+  # wasm SIMD at compile time (-msimd128). Match render-wasm link flags.
+  export EMCC_CFLAGS="${EMCC_CFLAGS:-} -msimd128"
+  export CFLAGS="${CFLAGS:-} -msimd128"
+  export CXXFLAGS="${CXXFLAGS:-} -msimd128"
+  SIMD_SUFFIX="-simd"
+  echo "WASM SIMD enabled (EMCC_CFLAGS contains -msimd128)"
+else
+  echo "WASM SIMD disabled (TARGET=${TARGET}, WASM_SIMD=${WASM_SIMD})"
+fi
+
+if [[ -d rust-skia/.git ]]; then
+  pushd rust-skia
+  git fetch --tags origin
+  git checkout "${TAG}"
+else
+  git clone https://github.com/rust-skia/rust-skia.git
+  pushd rust-skia
+  git checkout "${TAG}"
+fi
+
 HASH="$(git rev-parse --short=20 HEAD)"
-OUTPUT_FILE=skia-binaries-$HASH-$TARGET-"$(echo "$SKIA_FEATURES" | tr ',' '-')".tar.gz
-BUILD_PATH=$(cargo build -p skia-safe --release --features "$SKIA_FEATURES" --target $TARGET -q --message-format=json | jq --arg path "$PWD" -r 'select((.reason == "build-script-executed") and (.package_id | contains("skia-bindings")) ) | first(.linked_paths[] | select(startswith($path)))')
+FEATURES_SLUG="$(echo "${SKIA_FEATURES}" | tr ',' '-')"
+OUTPUT_FILE="skia-binaries-${HASH}-${TARGET}-${FEATURES_SLUG}${SIMD_SUFFIX}.tar.gz"
+
+echo "Building skia-safe ${TAG} (${HASH}) for ${TARGET}"
+echo "Features: ${SKIA_FEATURES}"
+echo "Emscripten: ${EMSCRIPTEN_VERSION}"
+
+BUILD_PATH="$(
+  cargo build -p skia-safe --release --features "${SKIA_FEATURES}" --target "${TARGET}" \
+    -q --message-format=json \
+    | jq --arg path "${PWD}" -r '
+        select(
+          (.reason == "build-script-executed")
+          and (.package_id | contains("skia-bindings"))
+        )
+        | first(.linked_paths[] | select(startswith($path)))
+      '
+)"
+
+if [[ -z "${BUILD_PATH}" || "${BUILD_PATH}" == "null" ]]; then
+  echo "ERROR: failed to resolve skia-bindings BUILD_PATH from cargo JSON" >&2
+  exit 1
+fi
+
+echo "BUILD_PATH: ${BUILD_PATH}"
+
 popd
 
-echo "BUILD_PATH: " $BUILD_PATH
-
+rm -rf skia-binaries
 mkdir skia-binaries
-cp $BUILD_PATH/*.a skia-binaries/
-cp $BUILD_PATH/bindings.rs skia-binaries/
-echo $HASH > skia-binaries/key.txt
-echo $TAG > skia-binaries/tag.txt
-cat > skia-binaries/LICENSE_SKIA  << EOL
+cp "${BUILD_PATH}"/*.a skia-binaries/
+cp "${BUILD_PATH}/bindings.rs" skia-binaries/
+echo "${HASH}" > skia-binaries/key.txt
+echo "${TAG}" > skia-binaries/tag.txt
+{
+  echo "tag=${TAG}"
+  echo "hash=${HASH}"
+  echo "target=${TARGET}"
+  echo "features=${SKIA_FEATURES}"
+  echo "emscripten=${EMSCRIPTEN_VERSION}"
+  echo "wasm_simd=${WASM_SIMD}"
+  echo "emcc_cflags=${EMCC_CFLAGS:-}"
+} > skia-binaries/build-info.txt
+
+cat > skia-binaries/LICENSE_SKIA <<'EOL'
 Copyright (c) 2011 Google Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -51,7 +125,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 EOL
 
-tar zcvf $OUTPUT_FILE skia-binaries
+tar zcvf "${OUTPUT_FILE}" skia-binaries
 rm -rf skia-binaries
-echo "Generated: $OUTPUT_FILE"
-cp $OUTPUT_FILE /output/
+echo "Generated: ${OUTPUT_FILE}"
+mkdir -p /output
+cp "${OUTPUT_FILE}" /output/

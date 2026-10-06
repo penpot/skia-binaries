@@ -1,6 +1,10 @@
 # Based on https://github.com/rust-skia/rust-skia/blob/master/docker/linux/Dockerfile
 FROM ghcr.io/pragmatrix/rust-skia-linux:latest
 
+# Keep in sync with penpot devenv (docker/devenv/Dockerfile) and build_skia.
+ARG EMSCRIPTEN_VERSION=4.0.6
+ENV EMSCRIPTEN_VERSION=${EMSCRIPTEN_VERSION}
+
 RUN apt-get update
 RUN apt-get install -y jq
 
@@ -14,9 +18,10 @@ ENV PATH="/opt/python/bin:$PATH"
 
 RUN set -ex; \
     cd emsdk; \
-    ./emsdk install latest; \
-    ./emsdk activate latest; \
+    ./emsdk install "${EMSCRIPTEN_VERSION}"; \
+    ./emsdk activate "${EMSCRIPTEN_VERSION}"; \
     rustup target add wasm32-unknown-emscripten;
 
 WORKDIR /rust-skia/
 COPY build_skia /rust-skia/
+RUN chmod +x /rust-skia/build_skia
