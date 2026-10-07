@@ -15,6 +15,13 @@ Build the docker image (Emscripten is pinned; override with
 docker build --tag skia-builder .
 ```
 
+For aarch64 Linux targets, also build the arm64 image (the main one is
+`x86_64` only):
+
+```bash
+docker build -f Dockerfile_aarch64 --tag skia-builder-aarch64 .
+```
+
 Run the build (`TAG` = rust-skia tag/commit, `TARGET` = cargo triple).
 Artifacts land in `./output/`.
 
@@ -22,7 +29,7 @@ Artifacts land in `./output/`.
 
 ```bash
 docker run -v ./output:/output \
-  -e TAG=0.93.1 \
+  -e TAG=0.153.3 \
   -e TARGET=wasm32-unknown-emscripten \
   --rm -it --entrypoint /rust-skia/build_skia skia-builder
 ```
@@ -35,19 +42,31 @@ Disable SIMD:
 
 ```bash
 docker run -v ./output:/output \
-  -e TAG=0.93.1 \
+  -e TAG=0.153.3 \
   -e TARGET=wasm32-unknown-emscripten \
   -e WASM_SIMD=0 \
   --rm -it --entrypoint /rust-skia/build_skia skia-builder
 ```
 
-### Native (Linux)
+### Native (Linux x86\_64)
 
 ```bash
 docker run -v ./output:/output \
-  -e TAG=0.93.1 \
+  -e TAG=0.153.3 \
   -e TARGET=x86_64-unknown-linux-gnu \
   --rm -it --entrypoint /rust-skia/build_skia skia-builder
+```
+
+### Native (Linux aarch64)
+
+For arm64 Linux, e.g. the penpot devenv on Apple Silicon. Uses the
+`skia-builder-aarch64` image:
+
+```bash
+docker run -v ./output:/output \
+  -e TAG=0.153.3 \
+  -e TARGET=aarch64-unknown-linux-gnu \
+  --rm -it --entrypoint /rust-skia/build_skia skia-builder-aarch64
 ```
 
 ## Environment
@@ -69,3 +88,4 @@ emscripten, simd flags) for later inspection.
 Point `render-wasm` `SKIA_BINARIES_URL` (in `_build_env`, `lint`, `test`) at
 the new asset URL. Keep `-msimd128` in `render-wasm` `EMCC_CFLAGS` when using
 a `-simd` wasm archive.
+
