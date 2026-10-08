@@ -1,0 +1,26 @@
+# Builds aarch64-unknown-linux-gnu binaries, e.g. for the penpot devenv on
+# Apple Silicon. The main Dockerfile's base image is x86_64 only.
+# Debian trixie matches the devenv's glibc; binaries built against a newer
+# glibc would not link there.
+FROM --platform=linux/arm64 rust:1-trixie
+
+RUN set -ex; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      clang \
+      libclang-dev \
+      git \
+      jq \
+      libfontconfig1-dev \
+      libfreetype-dev \
+      libgl1-mesa-dev \
+      libgles2-mesa-dev \
+      mesa-common-dev \
+      ninja-build \
+      pkg-config \
+      python3; \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /rust-skia/
+COPY build_skia /rust-skia/
+RUN chmod +x /rust-skia/build_skia

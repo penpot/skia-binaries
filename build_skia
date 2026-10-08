@@ -21,9 +21,12 @@ SKIA_FEATURES="${SKIA_FEATURES:-gl,svg,textlayout,binary-cache,webp,pdf}"
 EMSCRIPTEN_VERSION="${EMSCRIPTEN_VERSION:-4.0.6}"
 WASM_SIMD="${WASM_SIMD:-1}"
 
-/emsdk/emsdk activate "${EMSCRIPTEN_VERSION}"
-# shellcheck source=/dev/null
-. /emsdk/emsdk_env.sh
+# Images without emsdk (e.g. Dockerfile_aarch64) only build native targets.
+if [[ -x /emsdk/emsdk ]]; then
+  /emsdk/emsdk activate "${EMSCRIPTEN_VERSION}"
+  # shellcheck source=/dev/null
+  . /emsdk/emsdk_env.sh
+fi
 
 SIMD_SUFFIX=""
 if [[ "${TARGET}" == "wasm32-unknown-emscripten" && "${WASM_SIMD}" == "1" ]]; then
