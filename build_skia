@@ -10,7 +10,9 @@
 #                         (default: gl,svg,textlayout,binary-cache,webp,pdf)
 #   EMSCRIPTEN_VERSION    emsdk version to activate (default: 4.0.6)
 #   WASM_SIMD             1/0 — enable -msimd128 for wasm builds (default: 1)
-#   EMCC_CFLAGS           extra emcc flags (appended; wasm SIMD adds -msimd128)
+#   WASM_LONGJMP          wasm|emscripten — setjmp/longjmp backend for wasm
+#                         (default: wasm). Must match render-wasm EMCC_CFLAGS.
+#   EMCC_CFLAGS           extra emcc flags (appended; SIMD / longjmp flags added)
 
 set -euo pipefail
 
@@ -20,6 +22,7 @@ set -euo pipefail
 SKIA_FEATURES="${SKIA_FEATURES:-gl,svg,textlayout,binary-cache,webp,pdf}"
 EMSCRIPTEN_VERSION="${EMSCRIPTEN_VERSION:-4.0.6}"
 WASM_SIMD="${WASM_SIMD:-1}"
+WASM_LONGJMP="${WASM_LONGJMP:-wasm}"
 
 # Images without emsdk (e.g. Dockerfile_aarch64) only build native targets.
 if [[ -x /emsdk/emsdk ]]; then
@@ -28,17 +31,41 @@ if [[ -x /emsdk/emsdk ]]; then
   . /emsdk/emsdk_env.sh
 fi
 
+append_emcc_flags() {
+  local flags="$1"
+  export EMCC_CFLAGS="${EMCC_CFLAGS:-} ${flags}"
+  export CFLAGS="${CFLAGS:-} ${flags}"
+  export CXXFLAGS="${CXXFLAGS:-} ${flags}"
+}
+
 SIMD_SUFFIX=""
+LONGJMP_SUFFIX=""
 if [[ "${TARGET}" == "wasm32-unknown-emscripten" && "${WASM_SIMD}" == "1" ]]; then
   # Engines do not autovec scalar wasm into SIMD. Skia/emcc must emit
   # wasm SIMD at compile time (-msimd128). Match render-wasm link flags.
-  export EMCC_CFLAGS="${EMCC_CFLAGS:-} -msimd128"
-  export CFLAGS="${CFLAGS:-} -msimd128"
-  export CXXFLAGS="${CXXFLAGS:-} -msimd128"
+  append_emcc_flags "-msimd128"
   SIMD_SUFFIX="-simd"
   echo "WASM SIMD enabled (EMCC_CFLAGS contains -msimd128)"
 else
   echo "WASM SIMD disabled (TARGET=${TARGET}, WASM_SIMD=${WASM_SIMD})"
+fi
+
+if [[ "${TARGET}" == "wasm32-unknown-emscripten" ]]; then
+  case "${WASM_LONGJMP}" in
+    wasm)
+      # Native Wasm EH and Wasm setjmp/longjmp for the Skia objects.
+      append_emcc_flags "-fwasm-exceptions -sSUPPORT_LONGJMP=wasm"
+      LONGJMP_SUFFIX="-ljmp-wasm"
+      echo "WASM longjmp=wasm (-fwasm-exceptions -sSUPPORT_LONGJMP=wasm)"
+      ;;
+    emscripten|0)
+      echo "WASM longjmp=emscripten (JS invoke_* path)"
+      ;;
+    *)
+      echo "ERROR: WASM_LONGJMP must be 'wasm' or 'emscripten' (got '${WASM_LONGJMP}')" >&2
+      exit 1
+      ;;
+  esac
 fi
 
 if [[ -d rust-skia/.git ]]; then
@@ -53,11 +80,13 @@ fi
 
 HASH="$(git rev-parse --short=20 HEAD)"
 FEATURES_SLUG="$(echo "${SKIA_FEATURES}" | tr ',' '-')"
-OUTPUT_FILE="skia-binaries-${HASH}-${TARGET}-${FEATURES_SLUG}${SIMD_SUFFIX}.tar.gz"
+OUTPUT_FILE="skia-binaries-${HASH}-${TARGET}-${FEATURES_SLUG}${SIMD_SUFFIX}${LONGJMP_SUFFIX}.tar.gz"
 
 echo "Building skia-safe ${TAG} (${HASH}) for ${TARGET}"
 echo "Features: ${SKIA_FEATURES}"
 echo "Emscripten: ${EMSCRIPTEN_VERSION}"
+echo "WASM_LONGJMP: ${WASM_LONGJMP}"
+echo "EMCC_CFLAGS: ${EMCC_CFLAGS:-}"
 
 BUILD_PATH="$(
   cargo build -p skia-safe --release --features "${SKIA_FEATURES}" --target "${TARGET}" \
@@ -93,6 +122,7 @@ echo "${TAG}" > skia-binaries/tag.txt
   echo "features=${SKIA_FEATURES}"
   echo "emscripten=${EMSCRIPTEN_VERSION}"
   echo "wasm_simd=${WASM_SIMD}"
+  echo "wasm_longjmp=${WASM_LONGJMP}"
   echo "emcc_cflags=${EMCC_CFLAGS:-}"
 } > skia-binaries/build-info.txt
 
